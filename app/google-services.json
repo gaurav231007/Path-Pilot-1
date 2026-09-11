@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "581867891481",
+    "project_id": "pathpilot-aistudio",
+    "storage_bucket": "pathpilot-aistudio.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:581867891481:android:kqwvpn91823746",
+        "android_client_info": {
+          "package_name": "com.aistudio.pathpilot.kqwvpn"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyFakeKeyForLocalProcessServices12345"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

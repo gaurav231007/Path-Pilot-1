@@ -1,0 +1,6 @@
+{
+  "name": "Path Pilot",
+  "description": "AI-powered Educational and Career Decision Intelligence Platform: Decode Performance. Decide the Next Move.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

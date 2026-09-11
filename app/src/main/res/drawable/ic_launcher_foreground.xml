@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Path Pilot Compass Star and Directional Pointer in safe 66dp zone -->
+    <path
+        android:pathData="M54,28L63,45L80,54L63,63L54,80L45,63L28,54L45,45Z"
+        android:fillColor="#38BDF8" />
+    <path
+        android:pathData="M54,28L54,54L80,54Z"
+        android:fillColor="#67E8F9" />
+    <path
+        android:pathData="M54,80L54,54L28,54Z"
+        android:fillColor="#0284C7" />
+    <!-- Dynamic Decision Next Move Arrow indicator -->
+    <path
+        android:pathData="M54,42L59,51L54,49L49,51Z"
+        android:fillColor="#F8FAFC" />
+    <!-- Central Node -->
+    <path
+        android:pathData="M54,54m-4,0a4,4 0 1,0 8,0a4,4 0 1,0 -8,0"
+        android:fillColor="#F59E0B" />
+</vector>
