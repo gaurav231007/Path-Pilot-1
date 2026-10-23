@@ -67,7 +67,7 @@ import com.example.ui.theme.BrandRose
 import com.example.ui.viewmodel.PathPilotViewModel
 import kotlinx.coroutines.launch
 
-private data class StudyTask(val id: String, val title: String, val subtitle: String, val minutes: Int)
+private data class NativeStudyTask(val id: String, val title: String, val subtitle: String, val minutes: Int)
 
 @Composable
 fun PathPilotNativeApp(viewModel: PathPilotViewModel) {
@@ -96,12 +96,14 @@ private fun HomeTab(viewModel: PathPilotViewModel, onMentor: () -> Unit, onLearn
     val name = user?.name?.substringBefore(" ")?.ifBlank { "Builder" } ?: "Builder"
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("path_pilot_native_tracker", Context.MODE_PRIVATE) }
-    val tasks = remember { listOf(
-        StudyTask("college", "College revision", "Review today's lecture notes", 45),
-        StudyTask("code", "Developer practice", "Build one small feature", 60),
-        StudyTask("security", "Security lab", "Networking or web-security lab", 45),
-        StudyTask("recall", "Active recall", "Review yesterday's mistakes", 20)
-    ) }
+    val tasks = remember {
+        listOf(
+            NativeStudyTask("college", "College revision", "Review today's lecture notes", 45),
+            NativeStudyTask("code", "Developer practice", "Build one small feature", 60),
+            NativeStudyTask("security", "Security lab", "Networking or web-security lab", 45),
+            NativeStudyTask("recall", "Active recall", "Review yesterday's mistakes", 20)
+        )
+    }
     var refresh by remember { mutableStateOf(0) }
     @Suppress("UNUSED_VARIABLE") val token = refresh
     val completed = tasks.count { prefs.getBoolean(it.id, false) }
