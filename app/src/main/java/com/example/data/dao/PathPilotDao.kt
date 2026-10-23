@@ -17,7 +17,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PathPilotDao {
-    // Users
     @Query("SELECT * FROM users WHERE id = :userId LIMIT 1")
     fun getUserById(userId: Int): Flow<UserEntity?>
 
@@ -33,7 +32,6 @@ interface PathPilotDao {
     @Query("UPDATE users SET targetExam = :targetExam WHERE id = :userId")
     suspend fun updateUserTargetExam(userId: Int, targetExam: String)
 
-    // Exams
     @Query("SELECT * FROM exams ORDER BY id ASC")
     fun getAllExams(): Flow<List<ExamEntity>>
 
@@ -46,7 +44,6 @@ interface PathPilotDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExam(exam: ExamEntity): Long
 
-    // Subjects
     @Query("SELECT * FROM subjects WHERE examId = :examId ORDER BY id ASC")
     fun getSubjectsByExam(examId: Int): Flow<List<SubjectEntity>>
 
@@ -56,7 +53,6 @@ interface PathPilotDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSubject(subject: SubjectEntity): Long
 
-    // Chapters
     @Query("SELECT * FROM chapters WHERE subjectId = :subjectId ORDER BY id ASC")
     fun getChaptersBySubject(subjectId: Int): Flow<List<ChapterEntity>>
 
@@ -69,7 +65,6 @@ interface PathPilotDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChapter(chapter: ChapterEntity): Long
 
-    // Questions
     @Query("SELECT * FROM questions ORDER BY id DESC")
     fun getAllQuestions(): Flow<List<QuestionEntity>>
 
@@ -100,7 +95,6 @@ interface PathPilotDao {
     @Query("UPDATE questions SET totalAttempts = totalAttempts + 1, correctAttempts = correctAttempts + :isCorrect, averageTimeSec = (averageTimeSec + :timeTaken) / 2, calculatedDifficulty = :newDifficulty WHERE id = :questionId")
     suspend fun updateQuestionStats(questionId: Int, isCorrect: Int, timeTaken: Int, newDifficulty: String)
 
-    // Attempts
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAttempt(attempt: AttemptEntity): Long
 
@@ -110,7 +104,9 @@ interface PathPilotDao {
     @Query("SELECT COUNT(*) FROM attempts")
     fun getTotalAttemptsCount(): Flow<Int>
 
-    // Student DNA
+    @Query("DELETE FROM attempts")
+    suspend fun deleteAllAttempts()
+
     @Query("SELECT * FROM student_dna WHERE userId = :userId LIMIT 1")
     fun getDNAByUserId(userId: Int): Flow<StudentDNAEntity?>
 
@@ -120,10 +116,18 @@ interface PathPilotDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertOrUpdateDNA(dna: StudentDNAEntity): Long
 
-    // Audit Logs
+    @Query("DELETE FROM student_dna")
+    suspend fun deleteAllStudentDNA()
+
+    @Query("UPDATE questions SET totalAttempts = 0, correctAttempts = 0, averageTimeSec = 45, calculatedDifficulty = 'MEDIUM'")
+    suspend fun resetQuestionLearningStats()
+
     @Query("SELECT * FROM audit_logs ORDER BY timestamp DESC LIMIT 100")
     fun getAuditLogs(): Flow<List<AuditLogEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAuditLog(log: AuditLogEntity): Long
+
+    @Query("DELETE FROM audit_logs")
+    suspend fun deleteAllAuditLogs()
 }
