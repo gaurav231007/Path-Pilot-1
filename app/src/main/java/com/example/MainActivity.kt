@@ -5,7 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import com.example.ui.screens.PathPilotAppV2
+import com.example.ui.screens.PathPilotAcademyApp
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.PathPilotViewModel
 
@@ -17,7 +17,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
-                PathPilotAppV2(viewModel)
+                PathPilotAcademyApp(viewModel)
             }
         }
     }
