@@ -5,5 +5,5 @@ import com.example.ui.viewmodel.PathPilotViewModel
 
 @Composable
 fun PathPilotPremiumApp(viewModel: PathPilotViewModel) {
-    PathPilotFullApp(viewModel)
+    PathPilotApp(viewModel)
 }
