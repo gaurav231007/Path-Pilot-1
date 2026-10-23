@@ -3,22 +3,48 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Path Pilot Compass Star and Directional Pointer in safe 66dp zone -->
+
+    <!-- PathPilot road / route -->
     <path
-        android:pathData="M54,28L63,45L80,54L63,63L54,80L45,63L28,54L45,45Z"
-        android:fillColor="#38BDF8" />
-    <path
-        android:pathData="M54,28L54,54L80,54Z"
-        android:fillColor="#67E8F9" />
-    <path
-        android:pathData="M54,80L54,54L28,54Z"
-        android:fillColor="#0284C7" />
-    <!-- Dynamic Decision Next Move Arrow indicator -->
-    <path
-        android:pathData="M54,42L59,51L54,49L49,51Z"
+        android:pathData="M22,91 C25,72 33,63 47,58 C62,52 72,44 88,27 L96,33 C82,51 71,60 55,66 C42,71 37,78 36,96 Z"
         android:fillColor="#F8FAFC" />
-    <!-- Central Node -->
     <path
-        android:pathData="M54,54m-4,0a4,4 0 1,0 8,0a4,4 0 1,0 -8,0"
-        android:fillColor="#F59E0B" />
+        android:pathData="M29,84 C31,74 36,68 44,64 C47,62 51,61 55,59"
+        android:strokeWidth="3"
+        android:strokeColor="#2563EB"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M34,76 L39,74 M43,69 L48,67 M53,64 L58,61"
+        android:strokeWidth="2.5"
+        android:strokeColor="#2563EB"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Blue destination shape -->
+    <path
+        android:pathData="M22,34 C22,23 31,16 42,16 H68 C85,16 96,27 96,43 V68 C96,84 85,94 69,94 H43 C31,94 22,86 22,73 Z"
+        android:fillColor="#087BFF" />
+
+    <!-- Sun / next destination -->
+    <path
+        android:pathData="M78,16m-10,0a10,10 0 1,0 20,0a10,10 0 1,0 -20,0"
+        android:fillColor="#FBBF24" />
+    <path
+        android:pathData="M78,3 L78,0 M91,8 L94,5 M94,20 L99,21 M65,8 L62,5"
+        android:strokeWidth="2.5"
+        android:strokeColor="#F59E0B"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+
+    <!-- Paper plane -->
+    <path
+        android:pathData="M43,43 L94,27 L67,67 L57,54 Z"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M43,43 L94,27 L57,54 Z"
+        android:fillColor="#E0F2FE" />
+    <path
+        android:pathData="M57,54 L67,67 L68,48 Z"
+        android:fillColor="#38BDF8" />
 </vector>
