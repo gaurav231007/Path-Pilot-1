@@ -25,408 +25,166 @@ data class MentorReport(
 )
 
 object GeminiMentorService {
-
     private const val PREFS_NAME = "path_pilot_ai_prefs"
     private const val KEY_CUSTOM_GEMINI_API = "custom_gemini_api_key"
-
-    private const val MODEL_NAME = "gemini-3.5-flash"
+    private const val MODEL_NAME = "gemini-3.8-flash"
     private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
     private val httpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
             .build()
     }
 
     fun getEffectiveApiKey(context: Context?): String {
         if (context != null) {
-            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            val custom = prefs.getString(KEY_CUSTOM_GEMINI_API, "")?.trim() ?: ""
-            if (custom.isNotBlank()) {
-                return custom
-            }
+            val custom = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_CUSTOM_GEMINI_API, "")?.trim().orEmpty()
+            if (custom.isNotBlank()) return custom
         }
         val buildKey = BuildConfig.GEMINI_API_KEY.trim()
-        if (buildKey.isNotBlank() && buildKey != "MY_GEMINI_API_KEY") {
-            return buildKey
-        }
+        if (buildKey.isNotBlank() && buildKey != "MY_GEMINI_API_KEY") return buildKey
+        val explicitKey = BuildConfig.PATH_PILOT_GEMINI_API_KEY.trim()
+        if (explicitKey.isNotBlank() && explicitKey != "MY_GEMINI_API_KEY") return explicitKey
         return ""
     }
 
     fun setCustomApiKey(context: Context, key: String) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString(KEY_CUSTOM_GEMINI_API, key.trim()).apply()
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(KEY_CUSTOM_GEMINI_API, key.trim()).apply()
     }
 
     fun clearCustomApiKey(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().remove(KEY_CUSTOM_GEMINI_API).apply()
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .remove(KEY_CUSTOM_GEMINI_API).apply()
     }
 
-    fun isConfigured(context: Context?): Boolean {
-        return getEffectiveApiKey(context).isNotBlank()
-    }
+    fun isConfigured(context: Context?): Boolean = getEffectiveApiKey(context).isNotBlank()
 
-    // Live connection test to verify user's API key
     suspend fun testApiKeyConnection(keyToTest: String): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         val key = keyToTest.trim()
-        if (key.isBlank()) {
-            return@withContext Pair(false, "API key cannot be empty.")
-        }
-        if (key == "MY_GEMINI_API_KEY") {
-            return@withContext Pair(false, "Please provide your real Gemini API key from Google AI Studio.")
-        }
-
+        if (key.isBlank()) return@withContext false to "API key is empty."
         try {
-            val requestBody = JSONObject().apply {
-                put("contents", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("parts", JSONArray().apply {
-                            put(JSONObject().apply { put("text", "Respond with 'OK' if you can read this.") })
-                        })
-                    })
-                })
+            val body = JSONObject().apply {
+                put("contents", JSONArray().put(JSONObject().apply {
+                    put("parts", JSONArray().put(JSONObject().put("text", "Reply only OK.")))
+                }))
             }
-
-            val request = Request.Builder()
-                .url("$BASE_URL/$MODEL_NAME:generateContent?key=$key")
-                .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = httpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                Pair(true, "Successfully connected to Gemini 3.5 Flash!")
-            } else {
-                val errorBody = response.body?.string() ?: "HTTP ${response.code}"
-                val errorMsg = try {
-                    JSONObject(errorBody).optJSONObject("error")?.optString("message") ?: errorBody
-                } catch (_: Exception) {
-                    errorBody
-                }
-                Pair(false, "Connection failed: $errorMsg")
+            val request = Request.Builder().url("$BASE_URL/$MODEL_NAME:generateContent?key=$key")
+                .post(body.toString().toRequestBody("application/json".toMediaType())).build()
+            httpClient.newCall(request).execute().use { response ->
+                val raw = response.body?.string().orEmpty()
+                if (response.isSuccessful) true to "Gemini connected successfully."
+                else false to "Gemini HTTP ${response.code}: ${extractError(raw)}"
             }
         } catch (e: Exception) {
-            Pair(false, "Network error: ${e.localizedMessage ?: "Unknown failure"}")
+            false to "Network error: ${e.localizedMessage ?: "Unknown error"}"
         }
     }
 
-    // Enterprise-grade prompt injection sanitizer
     private fun sanitizeInput(input: String): String {
-        val dangerousPatterns = listOf(
-            "ignore previous instructions",
-            "system prompt",
-            "jailbreak",
-            "as an ai",
-            "act as an unfiltered",
-            "bypass safety",
-            "reveal prompt"
-        )
-        var sanitized = input
-        for (pattern in dangerousPatterns) {
-            sanitized = sanitized.replace(Regex(pattern, RegexOption.IGNORE_CASE), "[sanitized]")
+        val patterns = listOf("ignore previous instructions", "system prompt", "jailbreak", "bypass safety", "reveal prompt")
+        var result = input
+        patterns.forEach { result = result.replace(Regex(it, RegexOption.IGNORE_CASE), "[sanitized]") }
+        return result.trim().take(4000)
+    }
+
+    suspend fun askGeminiMentor(context: Context?, studentQuestion: String, studentContext: String): String = withContext(Dispatchers.IO) {
+        val key = getEffectiveApiKey(context)
+        if (key.isBlank()) return@withContext "Gemini is not configured in this build. Please add your Gemini API key in the app settings/status bar."
+
+        val question = sanitizeInput(studentQuestion)
+        val systemPrompt = """
+            You are Path-Pilot's personal engineering mentor.
+            Teach software engineering, backend development, professional development workflow,
+            cybersecurity in authorized environments, and college subjects.
+            Be practical: explain the concept, show a small example, then give the next action.
+            Do not give instructions for unauthorized access or attacks.
+            Keep the response under 220 words unless the learner asks for depth.
+            Learner context: $studentContext
+        """.trimIndent()
+
+        try {
+            val body = JSONObject().apply {
+                put("contents", JSONArray().put(JSONObject().apply {
+                    put("parts", JSONArray().put(JSONObject().put("text", question)))
+                }))
+                put("systemInstruction", JSONObject().apply {
+                    put("parts", JSONArray().put(JSONObject().put("text", systemPrompt)))
+                })
+                put("generationConfig", JSONObject().apply { put("temperature", 0.5) })
+            }
+            val request = Request.Builder().url("$BASE_URL/$MODEL_NAME:generateContent?key=$key")
+                .post(body.toString().toRequestBody("application/json".toMediaType())).build()
+            httpClient.newCall(request).execute().use { response ->
+                val raw = response.body?.string().orEmpty()
+                if (!response.isSuccessful) return@withContext "Gemini request failed (HTTP ${response.code}). ${extractError(raw)}"
+                val text = JSONObject(raw).optJSONArray("candidates")?.optJSONObject(0)
+                    ?.optJSONObject("content")?.optJSONArray("parts")?.optJSONObject(0)
+                    ?.optString("text").orEmpty().trim()
+                if (text.isNotBlank()) return@withContext text
+                "Gemini returned no text. Please try again."
+            }
+        } catch (e: Exception) {
+            "Gemini network error: ${e.localizedMessage ?: "Unknown error"}"
         }
-        return sanitized.trim().take(400)
     }
 
     suspend fun generateMentorGuidance(
-        context: Context? = null,
-        studentName: String,
-        targetExam: String,
-        readinessScore: Int,
-        accuracy: Float,
-        speedSec: Float,
-        weakTopics: String,
-        strongTopics: String
+        context: Context? = null, studentName: String, targetExam: String, readinessScore: Int,
+        accuracy: Float, speedSec: Float, weakTopics: String, strongTopics: String
     ): MentorReport = withContext(Dispatchers.IO) {
+        val apiKey = getEffectiveApiKey(context)
         val cleanName = sanitizeInput(studentName)
-        val cleanExam = sanitizeInput(targetExam)
-        val cleanWeak = sanitizeInput(weakTopics)
-        val cleanStrong = sanitizeInput(strongTopics)
-
-        val apiKey = getEffectiveApiKey(context)
-
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            return@withContext buildSynthesizedMentorReport(
-                cleanName, cleanExam, readinessScore, accuracy, speedSec, cleanWeak, cleanStrong, false
-            )
-        }
-
+        val weak = sanitizeInput(weakTopics)
+        val strong = sanitizeInput(strongTopics)
+        if (apiKey.isBlank()) return@withContext fallbackReport(cleanName, weak, strong, false)
         try {
-            val systemInstruction = """
-                You are an expert academic mentor and decision coach for Path Pilot ("Decode Performance. Decide the Next Move.").
-                Provide actionable educational guidance following the philosophy: Observe -> Explain -> Guide.
-                Never Command -> Lecture -> Overwhelm.
-                Do not hallucinate or invent facts. Only use the supplied student analytics.
-                Be supportive, specific, and practical.
-                Always return a valid JSON object matching the requested schema with keys:
-                "personalizedAnalysis", "biggestWeakness", "biggestStrength", "recommendedFocusArea", "studyStrategy", "improvementSuggestions" (array of 3 strings), "motivation", "explanationOfNextAction".
-            """.trimIndent()
-
-            val studentAnalyticsPrompt = """
-                Student Profile Analytics:
-                - Name: $cleanName
-                - Target Exam: $cleanExam
-                - Readiness Score: $readinessScore / 100
-                - Overall Accuracy: ${"%.1f".format(accuracy)}%
-                - Average Solving Speed: ${"%.1f".format(speedSec)} seconds/question
-                - Weak Topics Identified: $cleanWeak
-                - Strong Topics Demonstrated: $cleanStrong
-
-                Act as a personal mentor. Provide your detailed feedback and strategic next move recommendation.
-            """.trimIndent()
-
-            val requestBodyJson = JSONObject().apply {
-                put("contents", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("parts", JSONArray().apply {
-                            put(JSONObject().apply { put("text", studentAnalyticsPrompt) })
-                        })
-                    })
-                })
-                put("systemInstruction", JSONObject().apply {
-                    put("parts", JSONArray().apply {
-                        put(JSONObject().apply { put("text", systemInstruction) })
-                    })
-                })
-                put("generationConfig", JSONObject().apply {
-                    put("temperature", 0.4)
-                    put("responseMimeType", "application/json")
-                })
+            val prompt = "Learner: $cleanName\nFocus: ${sanitizeInput(targetExam)}\nReadiness: $readinessScore/100\nAccuracy: $accuracy%\nSpeed: $speedSec sec/question\nWeak: $weak\nStrong: $strong\nGive practical next steps. Return JSON with personalizedAnalysis, biggestWeakness, biggestStrength, recommendedFocusArea, studyStrategy, improvementSuggestions, motivation, explanationOfNextAction."
+            val body = JSONObject().apply {
+                put("contents", JSONArray().put(JSONObject().apply { put("parts", JSONArray().put(JSONObject().put("text", prompt))) }))
+                put("generationConfig", JSONObject().apply { put("temperature", 0.4); put("responseMimeType", "application/json") })
             }
-
-            val request = Request.Builder()
-                .url("$BASE_URL/$MODEL_NAME:generateContent?key=$apiKey")
-                .post(requestBodyJson.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = httpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                val responseBodyStr = response.body?.string() ?: ""
-                val parsed = JSONObject(responseBodyStr)
-                val candidates = parsed.optJSONArray("candidates")
-                val text = candidates?.optJSONObject(0)
-                    ?.optJSONObject("content")
-                    ?.optJSONArray("parts")
-                    ?.optJSONObject(0)
-                    ?.optString("text")
-
-                if (!text.isNullOrBlank()) {
-                    val reportJson = JSONObject(text)
-                    val suggestionsArray = reportJson.optJSONArray("improvementSuggestions")
-                    val suggestionsList = mutableListOf<String>()
-                    if (suggestionsArray != null) {
-                        for (i in 0 until suggestionsArray.length()) {
-                            suggestionsList.add(suggestionsArray.getString(i))
-                        }
-                    }
-                    if (suggestionsList.isEmpty()) {
-                        suggestionsList.add("Maintain daily error log for calculation slips")
-                        suggestionsList.add("Practice active recall for high-yield formulas")
-                        suggestionsList.add("Time your drills strictly to build exam stamina")
-                    }
-
-                    return@withContext MentorReport(
-                        personalizedAnalysis = reportJson.optString("personalizedAnalysis", "Your learning curve demonstrates strong foundational discipline with high upside in core technical topics."),
-                        biggestWeakness = reportJson.optString("biggestWeakness", cleanWeak.ifEmpty { "High-speed numerical precision" }),
-                        biggestStrength = reportJson.optString("biggestStrength", cleanStrong.ifEmpty { "Conceptual synthesis in mechanics" }),
-                        recommendedFocusArea = reportJson.optString("recommendedFocusArea", cleanWeak.split(",").firstOrNull() ?: "Electrostatics"),
-                        studyStrategy = reportJson.optString("studyStrategy", "Focus on 30-minute high-yield topic drills paired with error logging."),
-                        improvementSuggestions = suggestionsList,
-                        motivation = reportJson.optString("motivation", "Great scores aren't built on perfection; they are built on relentless micro-adjustments."),
-                        explanationOfNextAction = reportJson.optString("explanationOfNextAction", "Directing focus toward high-weightage topics with low mastery provides your fastest path to rank elevation."),
-                        isAiGenerated = true
-                    )
-                }
+            val request = Request.Builder().url("$BASE_URL/$MODEL_NAME:generateContent?key=$apiKey")
+                .post(body.toString().toRequestBody("application/json".toMediaType())).build()
+            httpClient.newCall(request).execute().use { response ->
+                val raw = response.body?.string().orEmpty()
+                if (!response.isSuccessful) return@withContext fallbackReport(cleanName, weak, strong, false)
+                val text = JSONObject(raw).optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")
+                    ?.optJSONArray("parts")?.optJSONObject(0)?.optString("text").orEmpty()
+                val json = JSONObject(text)
+                val suggestions = mutableListOf<String>()
+                json.optJSONArray("improvementSuggestions")?.let { a -> for (i in 0 until a.length()) suggestions.add(a.optString(i)) }
+                if (suggestions.isEmpty()) suggestions.addAll(listOf("Keep a daily mistake log", "Build one small feature", "Review weak topics with active recall"))
+                MentorReport(
+                    json.optString("personalizedAnalysis", "Keep building consistently."),
+                    json.optString("biggestWeakness", weak.ifBlank { "Not enough evidence yet" }),
+                    json.optString("biggestStrength", strong.ifBlank { "Consistency" }),
+                    json.optString("recommendedFocusArea", weak.ifBlank { "Current learning mission" }),
+                    json.optString("studyStrategy", "Learn, build, debug, review, repeat."),
+                    suggestions.take(3), json.optString("motivation", "Small daily progress compounds."),
+                    json.optString("explanationOfNextAction", "Focus on the weakest evidence-backed area first."), true
+                )
             }
         } catch (_: Exception) {
-            // Graceful fallback to synthesized expert mentor rule engine
+            fallbackReport(cleanName, weak, strong, false)
         }
-
-        buildSynthesizedMentorReport(cleanName, cleanExam, readinessScore, accuracy, speedSec, cleanWeak, cleanStrong, false)
     }
 
-    suspend fun askGeminiMentor(
-        context: Context?,
-        studentQuestion: String,
-        studentContext: String
-    ): String = withContext(Dispatchers.IO) {
-        val cleanQuestion = sanitizeInput(studentQuestion)
-        val apiKey = getEffectiveApiKey(context)
+    suspend fun explainQuestionWithGemini(context: Context?, questionText: String, options: String, studentAnswer: String, correctAnswer: String, standardExplanation: String): String =
+        askGeminiMentor(context, "Explain this college question step by step. Question: $questionText Options: $options Student answer: $studentAnswer Correct answer: $correctAnswer Official explanation: $standardExplanation", "The learner wants conceptual understanding, not just the answer.")
 
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            return@withContext "To enable live real-time conversations with the Path Pilot Gemini AI Mentor, please enter your Gemini API Key in Settings or the top AI status bar. In the meantime: Focus on daily deliberate practice, maintain an error journal, and solve high-weightage topics first."
-        }
+    private fun extractError(raw: String): String = try {
+        JSONObject(raw).optJSONObject("error")?.optString("message").orEmpty().ifBlank { raw.take(300) }
+    } catch (_: Exception) { raw.take(300) }
 
-        try {
-            val systemPrompt = """
-                You are Path Pilot's expert academic mentor for competitive exams (JEE, NEET, CUET, KCET).
-                The student context is: $studentContext.
-                Provide concise, motivating, actionable, and mathematically/scientifically sound advice.
-                Avoid overly lengthy generic filler; provide immediate tactical steps. Keep answers under 180 words.
-            """.trimIndent()
-
-            val requestBodyJson = JSONObject().apply {
-                put("contents", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("parts", JSONArray().apply {
-                            put(JSONObject().apply { put("text", cleanQuestion) })
-                        })
-                    })
-                })
-                put("systemInstruction", JSONObject().apply {
-                    put("parts", JSONArray().apply {
-                        put(JSONObject().apply { put("text", systemPrompt) })
-                    })
-                })
-                put("generationConfig", JSONObject().apply {
-                    put("temperature", 0.6)
-                })
-            }
-
-            val request = Request.Builder()
-                .url("$BASE_URL/$MODEL_NAME:generateContent?key=$apiKey")
-                .post(requestBodyJson.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = httpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                val body = response.body?.string() ?: ""
-                val parsed = JSONObject(body)
-                val text = parsed.optJSONArray("candidates")
-                    ?.optJSONObject(0)
-                    ?.optJSONObject("content")
-                    ?.optJSONArray("parts")
-                    ?.optJSONObject(0)
-                    ?.optString("text")
-
-                if (!text.isNullOrBlank()) {
-                    return@withContext text.trim()
-                }
-            }
-        } catch (e: Exception) {
-            return@withContext "Unable to reach Gemini API (${e.localizedMessage ?: "network issue"}). Please check your internet connection or API key."
-        }
-
-        "Mentorship recommendation: Focus on high-yield topic problems, review your mistake ledger daily, and simulate exam timing to minimize negative marking."
-    }
-
-    suspend fun explainQuestionWithGemini(
-        context: Context?,
-        questionText: String,
-        options: String,
-        studentAnswer: String,
-        correctAnswer: String,
-        standardExplanation: String
-    ): String = withContext(Dispatchers.IO) {
-        val apiKey = getEffectiveApiKey(context)
-
-        if (apiKey.isBlank() || apiKey == "MY_GEMINI_API_KEY") {
-            return@withContext "Standard Solution:\n$standardExplanation\n\n(Tip: Add your Gemini API Key in the top status bar to unlock interactive AI concept breakdowns and speed-solving shortcuts!)"
-        }
-
-        try {
-            val prompt = """
-                You are a master competitive exam tutor.
-                Explain this question clearly:
-                Question: $questionText
-                Options: $options
-                Student's Chosen Answer: $studentAnswer
-                Correct Answer: $correctAnswer
-                Official Solution: $standardExplanation
-
-                Format your response in 3 concise bullet points:
-                1. Key Concept & Why '$correctAnswer' is correct.
-                2. Why other options (including '$studentAnswer' if incorrect) are common traps.
-                3. Speed-Solving Shortcut (how to solve this in under 45 seconds).
-            """.trimIndent()
-
-            val requestBodyJson = JSONObject().apply {
-                put("contents", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("parts", JSONArray().apply {
-                            put(JSONObject().apply { put("text", prompt) })
-                        })
-                    })
-                })
-                put("generationConfig", JSONObject().apply {
-                    put("temperature", 0.3)
-                })
-            }
-
-            val request = Request.Builder()
-                .url("$BASE_URL/$MODEL_NAME:generateContent?key=$apiKey")
-                .post(requestBodyJson.toString().toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = httpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                val body = response.body?.string() ?: ""
-                val parsed = JSONObject(body)
-                val text = parsed.optJSONArray("candidates")
-                    ?.optJSONObject(0)
-                    ?.optJSONObject("content")
-                    ?.optJSONArray("parts")
-                    ?.optJSONObject(0)
-                    ?.optString("text")
-
-                if (!text.isNullOrBlank()) {
-                    return@withContext text.trim()
-                }
-            }
-        } catch (_: Exception) {
-            // Fallback to standard explanation
-        }
-
-        "Standard Solution:\n$standardExplanation"
-    }
-
-    private fun buildSynthesizedMentorReport(
-        name: String,
-        targetExam: String,
-        readinessScore: Int,
-        accuracy: Float,
-        speedSec: Float,
-        weakTopics: String,
-        strongTopics: String,
-        aiGenerated: Boolean
-    ): MentorReport {
-        val primaryWeak = weakTopics.split(",").firstOrNull()?.trim()?.ifEmpty { "Electrostatics & Capacitance" } ?: "Electrostatics & Capacitance"
-        val primaryStrong = strongTopics.split(",").firstOrNull()?.trim()?.ifEmpty { "Kinematics & Dynamics" } ?: "Kinematics & Dynamics"
-
-        val analysis = when {
-            readinessScore >= 80 -> "You are demonstrating outstanding consistency in $targetExam prep. Your mastery across fundamentals is crisp, and your primary leverage now lies in eliminating fringe edge-case traps."
-            readinessScore >= 60 -> "You have established a solid knowledge baseline. Your diagnostic trends show steady grasp in $primaryStrong, while targeted revision in $primaryWeak will yield the sharpest percentile surge."
-            else -> "You are at a pivotal building phase. Rather than spreading effort thinly across the entire syllabus, hyper-focusing on high-frequency topics like $primaryWeak will rapidly elevate your benchmark score."
-        }
-
-        val strategy = "Adopt the 30-10 Decision Rule: Spend 30 minutes clarifying the underlying physics or logic in $primaryWeak, followed immediately by 10 untimed verification questions to cement pattern recognition before introducing timed constraints."
-
-        val nextMoveReason = "Your diagnostic test confirmed that while you grasp $primaryStrong effectively, calculation drag and conceptual hesitation occur primarily in $primaryWeak. Since $primaryWeak carries heavy weightage in $targetExam, fixing this topic yields the highest score gain per hour spent."
-
-        val suggestions = listOf(
-            "Maintain an active 'Mistake Ledger' specifically recording why an incorrect option seemed plausible in $primaryWeak.",
-            "Benchmark your solving rhythm to 45 seconds on standard questions to reserve 2.5 minutes for complex multi-step problems.",
-            "Perform weekly mixed-topic retention quizzes to prevent decay in $primaryStrong while you elevate $primaryWeak."
-        )
-
-        val quote = if (readinessScore >= 70) {
-            "Precision beats volume. Focus on deciding the next move with total clarity, $name."
-        } else {
-            "Every champion's diagnostic started somewhere. Trust the data, attack $primaryWeak, and watch your readiness climb."
-        }
-
-        return MentorReport(
-            personalizedAnalysis = analysis,
-            biggestWeakness = primaryWeak,
-            biggestStrength = primaryStrong,
-            recommendedFocusArea = primaryWeak,
-            studyStrategy = strategy,
-            improvementSuggestions = suggestions,
-            motivation = quote,
-            explanationOfNextAction = nextMoveReason,
-            isAiGenerated = aiGenerated
-        )
-    }
+    private fun fallbackReport(name: String, weak: String, strong: String, ai: Boolean) = MentorReport(
+        "$name, keep the loop simple: learn one concept, build something tiny, debug it, and review the mistake.",
+        weak.ifBlank { "Not enough data yet" }, strong.ifBlank { "You are actively learning" },
+        weak.ifBlank { "Today's learning mission" }, "Concept → tiny exercise → real feature → bug → debugging → review.",
+        listOf("Practice one small feature today", "Keep an error log", "Review yesterday's mistake before starting"),
+        "Consistency beats random long sessions.", "Start with one small task you can finish today.", ai
+    )
 }
