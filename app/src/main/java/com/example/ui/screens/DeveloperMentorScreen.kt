@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,36 +16,45 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DataObject
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.TrackChanges
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -53,8 +63,18 @@ import com.example.ui.theme.BrandEmerald
 import com.example.ui.theme.BrandIndigo
 import com.example.ui.theme.BrandRose
 import com.example.ui.viewmodel.PathPilotViewModel
+import java.util.Calendar
 
 private val BrandAmberCompat = Color(0xFFFFB020)
+
+private data class DailyStudyTask(val id: String, val title: String, val detail: String, val minutes: Int, val kind: String)
+
+private fun dailyTasks(): List<DailyStudyTask> = listOf(
+    DailyStudyTask("college", "College revision", "Review today's lectures + short notes", 45, "College"),
+    DailyStudyTask("exam", "Exam practice", "Solve 5–8 syllabus/PYQ-style questions", 45, "College"),
+    DailyStudyTask("coding", "Developer track", "Concept + a small coding exercise", 60, "Coding"),
+    DailyStudyTask("review", "Active recall", "Review yesterday's mistakes", 20, "Revision")
+)
 
 @Composable
 fun DeveloperMentorScreen(
@@ -64,6 +84,13 @@ fun DeveloperMentorScreen(
 ) {
     val user by viewModel.currentUser.collectAsState()
     val name = user?.name?.substringBefore(" ")?.ifBlank { "Builder" } ?: "Builder"
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("path_pilot_study_tracker", Context.MODE_PRIVATE) }
+    var refresh by remember { mutableStateOf(0) }
+    val tasks = remember { dailyTasks() }
+    val completed = tasks.count { prefs.getBoolean("done_${it.id}", false) }
+    val progress = completed.toFloat() / tasks.size.coerceAtLeast(1)
+    @Suppress("UNUSED_VARIABLE") val refreshToken = refresh
 
     LazyColumn(
         modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
@@ -74,7 +101,7 @@ fun DeveloperMentorScreen(
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
                     Text("Good to see you, $name 👋", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Continue your developer journey", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Learn smarter: college + development + security", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Surface(shape = CircleShape, color = BrandIndigo.copy(alpha = 0.14f)) {
                     Icon(Icons.Default.Psychology, null, tint = BrandIndigo, modifier = Modifier.padding(10.dp).size(22.dp))
@@ -103,12 +130,7 @@ fun DeveloperMentorScreen(
                     Spacer(Modifier.height(12.dp))
                     LinearProgressIndicator(progress = { 0.03f }, modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(5.dp)))
                     Spacer(Modifier.height(12.dp))
-                    Button(
-                        onClick = onOpenMentor,
-                        modifier = Modifier.fillMaxWidth().height(46.dp),
-                        shape = RoundedCornerShape(13.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = BrandIndigo)
-                    ) {
+                    Button(onClick = onOpenMentor, modifier = Modifier.fillMaxWidth().height(46.dp), shape = RoundedCornerShape(13.dp), colors = ButtonDefaults.buttonColors(containerColor = BrandIndigo)) {
                         Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(19.dp))
                         Spacer(Modifier.width(7.dp))
                         Text("Start learning", fontWeight = FontWeight.Bold)
@@ -118,8 +140,46 @@ fun DeveloperMentorScreen(
         }
 
         item {
+            Card(Modifier.fillMaxWidth(), RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Column(Modifier.padding(15.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.CalendarMonth, null, tint = BrandCyan)
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Today's study plan", fontWeight = FontWeight.Black)
+                            Text("College + coding + revision", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text("$completed/${tasks.size}", fontWeight = FontWeight.Black, color = BrandCyan)
+                    }
+                    Spacer(Modifier.height(9.dp))
+                    LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(5.dp))
+                    Spacer(Modifier.height(9.dp))
+                    tasks.forEach { task ->
+                        val done = prefs.getBoolean("done_${task.id}", false)
+                        Row(
+                            Modifier.fillMaxWidth().clickable {
+                                prefs.edit().putBoolean("done_${task.id}", !done).apply()
+                                refresh++
+                            }.padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(if (done) Icons.Default.CheckCircle else Icons.Default.TaskAlt, null, modifier = Modifier.size(19.dp), tint = if (done) BrandEmerald else MaterialTheme.colorScheme.outline)
+                            Spacer(Modifier.width(9.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(task.title, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                Text(task.detail, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Text("${task.minutes}m", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Text("Tap a task when finished — progress is saved on this device.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+
+        item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                StatCard("0", "Days", Icons.Default.Bolt, BrandAmberCompat, Modifier.weight(1f))
+                StatCard("$completed", "Done today", Icons.Default.Bolt, BrandAmberCompat, Modifier.weight(1f))
                 StatCard("0", "Projects", Icons.Default.Code, BrandCyan, Modifier.weight(1f))
                 StatCard("0%", "Mastery", Icons.Default.TrackChanges, BrandEmerald, Modifier.weight(1f))
             }
@@ -159,6 +219,20 @@ fun DeveloperMentorScreen(
                         Text("Explain • hint • debug • review", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Text("→", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = BrandIndigo)
+                }
+            }
+        }
+
+        item {
+            Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.padding(15.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.MenuBook, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Exam intelligence", fontWeight = FontWeight.Black)
+                    }
+                    Spacer(Modifier.height(5.dp))
+                    Text("When you add your syllabus, PYQs and assignments, Path-Pilot will rank questions using repetition, syllabus weight, assignment overlap and your mistakes. It will show high-probability questions—not fake 99% guarantees.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
             }
         }
