@@ -17,9 +17,10 @@ data class MentorReport(val personalizedAnalysis:String,val biggestWeakness:Stri
 object GeminiMentorService {
     private const val PREFS_NAME="path_pilot_ai_prefs"
     private const val KEY_CUSTOM_GEMINI_API="custom_gemini_api_key"
-    private const val MODEL_NAME="gemini-2.5-flash"
+    // Gemini 3.8 Flash is the current stable API model for complex coding/agentic work.
+    private const val MODEL_NAME="gemini-3.8-flash"
     private const val BASE_URL="https://generativelanguage.googleapis.com/v1beta/models"
-    private val httpClient by lazy{OkHttpClient.Builder().connectTimeout(30,TimeUnit.SECONDS).readTimeout(90,TimeUnit.SECONDS).writeTimeout(90,TimeUnit.SECONDS).build()}
+    private val httpClient by lazy{OkHttpClient.Builder().connectTimeout(30,TimeUnit.SECONDS).readTimeout(120,TimeUnit.SECONDS).writeTimeout(120,TimeUnit.SECONDS).build()}
 
     fun getEffectiveApiKey(context:Context?):String{
         if(context!=null){val k=context.getSharedPreferences(PREFS_NAME,Context.MODE_PRIVATE).getString(KEY_CUSTOM_GEMINI_API,"")?.trim().orEmpty();if(k.isNotBlank())return k}
@@ -31,24 +32,30 @@ object GeminiMentorService {
     fun clearCustomApiKey(context:Context){context.getSharedPreferences(PREFS_NAME,Context.MODE_PRIVATE).edit().remove(KEY_CUSTOM_GEMINI_API).apply()}
     fun isConfigured(context:Context?)=getEffectiveApiKey(context).isNotBlank()
 
+    private fun requestBody(prompt:String,maxTokens:Int):String = JSONObject()
+        .put("contents",JSONArray().put(JSONObject().put("parts",JSONArray().put(JSONObject().put("text",prompt)))))
+        .put("generationConfig",JSONObject().put("maxOutputTokens",maxTokens))
+        .toString()
+
     suspend fun testApiKeyConnection(keyToTest:String): Pair<Boolean, String> = withContext(Dispatchers.IO){
         val key=keyToTest.trim();if(key.isBlank())return@withContext false to "API key is empty."
         try{
-            val body=JSONObject().put("contents",JSONArray().put(JSONObject().put("parts",JSONArray().put(JSONObject().put("text","Reply only OK.")))))
-            val request=Request.Builder().url("$BASE_URL/$MODEL_NAME:generateContent?key=$key").post(body.toString().toRequestBody("application/json".toMediaType())).build()
-            httpClient.newCall(request).execute().use{response->val raw=response.body?.string().orEmpty();if(response.isSuccessful)true to "Gemini connected successfully." else false to "Gemini HTTP ${response.code}: ${extractError(raw)}"}
+            val request=Request.Builder().url("$BASE_URL/$MODEL_NAME:generateContent?key=$key").post(requestBody("Reply only OK.",20).toRequestBody("application/json".toMediaType())).build()
+            httpClient.newCall(request).execute().use{response->val raw=response.body?.string().orEmpty();if(response.isSuccessful)true to "Gemini 3.8 Flash connected successfully." else false to "Gemini HTTP ${response.code}: ${extractError(raw)}"}
         }catch(e:Exception){false to "Network error: ${e.localizedMessage?:"Unknown error"}"}
     }
 
-    private fun clean(s:String)=s.trim().take(5000)
-    private fun extractError(raw:String)=runCatching{JSONObject(raw).optJSONObject("error")?.optString("message")}.getOrNull()?.takeIf{it.isNotBlank()}?:raw.take(300)
+    private fun clean(s:String)=s.trim().take(8000)
+    private fun extractError(raw:String)=runCatching{JSONObject(raw).optJSONObject("error")?.optString("message")}.getOrNull()?.takeIf{it.isNotBlank()}?:raw.take(500)
 
     suspend fun askGeminiMentor(context:Context?,question:String,studentContext:String)=withContext(Dispatchers.IO){
         val key=getEffectiveApiKey(context);if(key.isBlank())return@withContext "Gemini API key is not available in this build."
-        val prompt="""You are Path-Pilot's personal engineering mentor. Teach programming, backend engineering, professional software workflow, cybersecurity only in authorized labs, and college subjects. Follow: concept -> tiny exercise -> real feature -> bug/debug -> review -> next action. Be practical and give a concrete next task. Never guarantee exam questions and never help with unauthorized access.\n\nLearner context: ${clean(studentContext)}\nQuestion: ${clean(question)}"""
+        val prompt="""You are Path-Pilot's personal engineering mentor. Teach programming languages, web development, backend engineering, professional software workflow, cybersecurity only in authorized labs, and college subjects. Teach by: concept -> tiny exercise -> real feature -> bug/debug -> review -> next action. Be practical, explain why, and give a concrete next task. Support beginners and adapt difficulty from learner context. Never guarantee exam questions and never help with unauthorized access.
+
+Learner context: ${clean(studentContext)}
+Question: ${clean(question)}"""
         try{
-            val body=JSONObject().put("contents",JSONArray().put(JSONObject().put("parts",JSONArray().put(JSONObject().put("text",prompt))))).put("generationConfig",JSONObject().put("temperature",0.4).put("maxOutputTokens",1200))
-            val request=Request.Builder().url("$BASE_URL/$MODEL_NAME:generateContent?key=$key").post(body.toString().toRequestBody("application/json".toMediaType())).build()
+            val request=Request.Builder().url("$BASE_URL/$MODEL_NAME:generateContent?key=$key").post(requestBody(prompt,1600).toRequestBody("application/json".toMediaType())).build()
             httpClient.newCall(request).execute().use{response->val raw=response.body?.string().orEmpty();if(!response.isSuccessful)return@withContext "Gemini request failed (HTTP ${response.code}): ${extractError(raw)}";val text=runCatching{JSONObject(raw).getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text")}.getOrNull().orEmpty();if(text.isBlank())"Gemini returned no text. Please try again." else text.trim()}
         }catch(e:Exception){"Gemini network error: ${e.localizedMessage?:"Unknown error"}"}
     }
