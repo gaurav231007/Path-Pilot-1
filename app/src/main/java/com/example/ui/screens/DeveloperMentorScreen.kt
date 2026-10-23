@@ -83,7 +83,11 @@ fun DeveloperMentorScreen(
         }
 
         item {
-            Card(Modifier.fillMaxWidth(), RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
                 Column(Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(shape = RoundedCornerShape(10.dp), color = BrandIndigo.copy(alpha = 0.12f)) {
@@ -101,9 +105,9 @@ fun DeveloperMentorScreen(
                     Spacer(Modifier.height(12.dp))
                     Text("App → HTTP → Backend → Database → Response", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(12.dp))
-                    LinearProgressIndicator(progress = { 0.03f }, Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(5.dp)))
+                    LinearProgressIndicator(progress = { 0.03f }, modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(5.dp)))
                     Spacer(Modifier.height(12.dp))
-                    Button(onClick = onOpenMentor, Modifier.fillMaxWidth().height(46.dp), RoundedCornerShape(13.dp), colors = ButtonDefaults.buttonColors(containerColor = BrandIndigo)) {
+                    Button(onClick = onOpenMentor, modifier = Modifier.fillMaxWidth().height(46.dp), shape = RoundedCornerShape(13.dp), colors = ButtonDefaults.buttonColors(containerColor = BrandIndigo)) {
                         Icon(Icons.Default.PlayArrow, null, Modifier.size(19.dp))
                         Spacer(Modifier.width(7.dp))
                         Text("Start learning", fontWeight = FontWeight.Bold)
@@ -132,7 +136,11 @@ fun DeveloperMentorScreen(
         }
 
         item {
-            Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     RoadmapRow("01", "Programming Core", "C → Python → problem solving", BrandCyan, true)
                     RoadmapRow("02", "Backend Engineering", "HTTP → API → FastAPI → SQL", BrandEmerald, false)
@@ -143,7 +151,11 @@ fun DeveloperMentorScreen(
         }
 
         item {
-            Card(Modifier.fillMaxWidth().clickable(onClick = onOpenMentor), RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = BrandIndigo.copy(alpha = 0.10f))) {
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable(onClick = onOpenMentor),
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = BrandIndigo.copy(alpha = 0.10f))
+            ) {
                 Row(Modifier.padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
                     Surface(shape = CircleShape, color = BrandIndigo.copy(alpha = 0.14f)) {
                         Icon(Icons.Default.AutoAwesome, null, tint = BrandIndigo, modifier = Modifier.padding(9.dp).size(21.dp))
@@ -164,7 +176,7 @@ fun DeveloperMentorScreen(
 private fun StatCard(label: String, title: String, icon: ImageVector, tint: Color, modifier: Modifier) {
     Surface(shape = RoundedCornerShape(15.dp), color = MaterialTheme.colorScheme.surface, modifier = modifier) {
         Column(Modifier.padding(11.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(icon, null, tint = tint, Modifier.size(19.dp))
+            Icon(icon, null, tint = tint, modifier = Modifier.size(19.dp))
             Spacer(Modifier.height(4.dp))
             Text(label, fontWeight = FontWeight.Black)
             Text(title, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -176,7 +188,7 @@ private fun StatCard(label: String, title: String, icon: ImageVector, tint: Colo
 private fun PathChip(label: String, icon: ImageVector, tint: Color, selected: Boolean) {
     Surface(shape = RoundedCornerShape(13.dp), color = if (selected) tint.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surface, modifier = Modifier.clickable { }) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = tint, Modifier.size(17.dp))
+            Icon(icon, null, tint = tint, modifier = Modifier.size(17.dp))
             Spacer(Modifier.width(6.dp))
             Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
@@ -187,7 +199,7 @@ private fun PathChip(label: String, icon: ImageVector, tint: Color, selected: Bo
 private fun RoadmapRow(number: String, title: String, subtitle: String, tint: Color, active: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Surface(shape = CircleShape, color = if (active) tint.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant) {
-            Text(number, Modifier.padding(horizontal = 9.dp, vertical = 7.dp), fontSize = 11.sp, fontWeight = FontWeight.Black, color = if (active) tint else MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(number, modifier = Modifier.padding(horizontal = 9.dp, vertical = 7.dp), fontSize = 11.sp, fontWeight = FontWeight.Black, color = if (active) tint else MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.width(11.dp))
         Column(Modifier.weight(1f)) {
