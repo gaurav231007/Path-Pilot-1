@@ -17,14 +17,12 @@ data class MentorReport(val personalizedAnalysis:String,val biggestWeakness:Stri
 object GeminiMentorService {
     private const val PREFS_NAME="path_pilot_ai_prefs"
     private const val KEY_CUSTOM_GEMINI_API="custom_gemini_api_key"
-    // Gemini 3.8 Flash is the current stable API model for complex coding/agentic work.
     private const val MODEL_NAME="gemini-3.8-flash"
     private const val BASE_URL="https://generativelanguage.googleapis.com/v1beta/models"
     private val httpClient by lazy{OkHttpClient.Builder().connectTimeout(30,TimeUnit.SECONDS).readTimeout(120,TimeUnit.SECONDS).writeTimeout(120,TimeUnit.SECONDS).build()}
 
     fun getEffectiveApiKey(context:Context?):String{
         if(context!=null){val k=context.getSharedPreferences(PREFS_NAME,Context.MODE_PRIVATE).getString(KEY_CUSTOM_GEMINI_API,"")?.trim().orEmpty();if(k.isNotBlank())return k}
-        val a=runCatching{BuildConfig.GEMINI_API_KEY.trim()}.getOrDefault("");if(a.isNotBlank()&&a!="MY_GEMINI_API_KEY")return a
         val b=runCatching{BuildConfig.PATH_PILOT_GEMINI_API_KEY.trim()}.getOrDefault("");if(b.isNotBlank()&&b!="MY_GEMINI_API_KEY")return b
         return ""
     }
