@@ -21,11 +21,17 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Ensure .env configuration exists
+      -       - name: Configure Gemini API
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          if [ ! -f .env ]; then
-            cp .env.example .env
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "GEMINI_API_KEY secret is missing"
+            exit 1
           fi
+
+          cp .env.example .env
+          sed -i "s|^GEMINI_API_KEY=.*|GEMINI_API_KEY=$GEMINI_API_KEY|" .env
 
       - name: Ensure Keystore exists for signing
         run: |
