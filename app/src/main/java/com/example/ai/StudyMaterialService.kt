@@ -15,7 +15,7 @@ import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 object StudyMaterialService {
-    private const val MODEL_NAME = "gemini-2.5-flash"
+    private const val MODEL_NAME = "gemini-3.8-flash"
     private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
     private const val MAX_FILE_BYTES = 6L * 1024L * 1024L
     private val client by lazy { OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).writeTimeout(120, TimeUnit.SECONDS).build() }
@@ -34,14 +34,14 @@ object StudyMaterialService {
             parts.put(JSONObject().put("text", "FILE: ${getDisplayName(context, uri)}"))
             parts.put(JSONObject().put("inline_data", JSONObject().put("mime_type", mime).put("data", Base64.encodeToString(bytes, Base64.NO_WRAP))))
         }
-        val body = JSONObject().put("contents", JSONArray().put(JSONObject().put("parts", parts))).put("generationConfig", JSONObject().put("temperature", 0.2).put("maxOutputTokens", 1800))
+        val body = JSONObject().put("contents", JSONArray().put(JSONObject().put("parts", parts))).put("generationConfig", JSONObject().put("maxOutputTokens", 2200))
         try {
             val request = Request.Builder().url("$BASE_URL/$MODEL_NAME:generateContent?key=$key").post(body.toString().toRequestBody("application/json".toMediaType())).build()
             client.newCall(request).execute().use { response ->
                 val raw = response.body?.string().orEmpty()
                 if (!response.isSuccessful) {
                     val message = runCatching { JSONObject(raw).optJSONObject("error")?.optString("message") }.getOrNull().orEmpty()
-                    return@withContext "Material analysis failed (HTTP ${response.code}): ${message.ifBlank { raw.take(200) }}"
+                    return@withContext "Material analysis failed (HTTP ${response.code}): ${message.ifBlank { raw.take(300) }}"
                 }
                 runCatching { JSONObject(raw).getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text") }.getOrNull()?.trim()?.takeIf { it.isNotBlank() } ?: "I couldn't extract useful analysis from these files."
             }
