@@ -31,7 +31,7 @@ object GeminiMentorService {
     fun clearCustomApiKey(context:Context){context.getSharedPreferences(PREFS_NAME,Context.MODE_PRIVATE).edit().remove(KEY_CUSTOM_GEMINI_API).apply()}
     fun isConfigured(context:Context?)=getEffectiveApiKey(context).isNotBlank()
 
-    suspend fun testApiKeyConnection(keyToTest:String):Pair<Boolean,String>=withContext(Dispatchers.IO){
+    suspend fun testApiKeyConnection(keyToTest:String): Pair<Boolean, String> = withContext(Dispatchers.IO){
         val key=keyToTest.trim();if(key.isBlank())return@withContext false to "API key is empty."
         try{
             val body=JSONObject().put("contents",JSONArray().put(JSONObject().put("parts",JSONArray().put(JSONObject().put("text","Reply only OK.")))))
