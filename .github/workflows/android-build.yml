@@ -29,9 +29,9 @@ jobs:
             echo "GEMINI_API_KEY secret is missing"
             exit 1
           fi
-
           cp .env.example .env
           sed -i "s|^GEMINI_API_KEY=.*|GEMINI_API_KEY=$GEMINI_API_KEY|" .env
+          printf 'GEMINI_API_KEY=%s\n' "$GEMINI_API_KEY" > local.properties
 
       - name: Ensure Keystore exists for signing
         run: |
